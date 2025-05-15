@@ -2,18 +2,6 @@
 
 An application that transforms images of people by changing backgrounds and clothing styles while preserving faces and poses, using AI models.
 
-## Features
-
-- Detects people in images using YOLO and MediaPipe
-- Preserves original faces while transforming backgrounds and clothing
-- Applies custom clothing styles based on text prompts
-- Creates custom backgrounds based on text prompts
-- Generates polaroid-style output images
-- Creates QR codes linking to stored images
-- Stores images on IPFS via Pinata for permanent access
-- Sends transformed images by email using Resend API
-- Multiple fallback mechanisms to ensure results
-
 ## Requirements
 
 - Python 3.7+
@@ -53,6 +41,18 @@ An application that transforms images of people by changing backgrounds and clot
    - Sign up for an [OpenAI](https://openai.com) account to get an API key
    - Sign up for a [Pinata](https://pinata.cloud) account to get a JWT for IPFS storage
    - Sign up for a [Resend](https://resend.com) account to get an API key for email functionality
+
+## Repository Structure
+
+```
+├── main.ipynb           # Main Jupyter notebook interface
+├── pipeline.py          # Image processing pipeline coordinator
+├── scripts.py           # Core functions for image processing
+├── config.py            # Configuration settings
+├── email_template.html  # HTML template for email delivery
+├── requirements.txt     # Python dependencies
+└── sam_vit_h_4b8939.pth # SAM model weights (download separately)
+```
 
 ## How It Works
 
