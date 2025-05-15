@@ -16,6 +16,7 @@ import qrcode
 import resend
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import landscape, A4
+from config import replicate_model
 
 
 load_dotenv()
@@ -75,7 +76,10 @@ def generate_face_mask(timestamp):
     sam_checkpoint = "sam_vit_h_4b8939.pth"
     model_type = "vit_h"
 
-    if torch.backends.mps.is_available():
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("Using CUDA")
+    elif torch.backends.mps.is_available():
         device = torch.device("mps")
         print("Using MPS on Mac (Apple Silicon)")
     else:
@@ -115,35 +119,33 @@ def generate_face_mask(timestamp):
     cv2.imwrite(f"masks/image_{timestamp}.png", combined_mask)
 
 def generate_encoding_image(prompt_text, timestamp):
-
-    image_name = f"input/image_{timestamp}.jpg"
     client = OpenAI(api_key=OPENAI_API_KEY)
+    image_path = f"input/image_{timestamp}.jpg"
+    with open(image_path, "rb") as f:
+        b64_data = base64.b64encode(f.read()).decode("utf-8")
 
-    with open(image_name, "rb") as image_file:
-        b64 = base64.b64encode(image_file.read()).decode("utf-8")
-
-    response = client.responses.create(
-        model="gpt-4.1",
-        input=[
-            {
-                "role": "user",
-                "content": [
-                    { "type": "input_text", "text": prompt_text },
-                    {
-                        "type": "input_image",
-                        "image_url": f"data:image/jpeg;base64,{b64}",
-                    },
-                ],
+    # build the messages list with proper content types
+    message = {
+        "role": "user",
+        "content": [
+            { "type": "text",       "text": prompt_text },
+            { 
+              "type": "image_url",  
+              "image_url": { 
+                  "url": f"data:image/jpeg;base64,{b64_data}" 
+              } 
             }
         ],
+    }
+
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",      # or your multimodal-enabled model
+        messages=[message],
     )
 
-    encoding_image = response.output_text
+    return resp.choices[0].message.content
 
-    return encoding_image
-
-
-def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt,timestamp):
+def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, timestamp, model="ideogram-ai/ideogram-v3-turbo"):
 
     prompt = f"{encoding_image} \n{clothes_prompt} \n{background_prompt}"
 
@@ -159,7 +161,7 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt,ti
 
     # Run the model
     output = client.run(
-        "ideogram-ai/ideogram-v3-turbo",
+        model,  # Use the provided model parameter
         input={
             "image": image,                # Use uploaded URL
             "mask": mask,

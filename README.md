@@ -51,6 +51,7 @@ An application that transforms images of people by changing backgrounds and clot
 ├── config.py            # Configuration settings
 ├── email_template.html  # HTML template for email delivery
 ├── requirements.txt     # Python dependencies
+├── app.py               # Streamlit web interface
 └── sam_vit_h_4b8939.pth # SAM model weights (download separately)
 ```
 
@@ -65,6 +66,23 @@ An application that transforms images of people by changing backgrounds and clot
 7. **IPFS Storage**: Uploads the final image to IPFS via Pinata for permanent storage
 8. **QR Code Generation**: Creates a QR code linking to the IPFS-stored image
 9. **Email Delivery**: Optionally sends the result via email with the QR code
+
+## Web UI Demo
+
+The application includes a user-friendly web interface built with Streamlit. To run the web demo:
+
+1. Make sure you have installed all dependencies: `pip install -r requirements.txt`
+2. Run the Streamlit app: `streamlit run app.py`
+3. Navigate to the URL shown in your terminal (typically http://localhost:8501)
+
+The web interface allows you to:
+- Upload an image or capture one using your webcam
+- Customize clothing and background styles using text prompts
+- Process the image with one click
+- View the transformed result alongside a QR code for sharing
+- Optionally send the result to your email
+
+This interface is ideal for demonstrations and for users without technical experience.
 
 ## System Requirements
 
