@@ -66,9 +66,18 @@ def generate_face_mask(timestamp):
 
     image_name = f"input/image_{timestamp}.jpg"
     image = cv2.imread(image_name)
+    
+    # Resize the image to ensure dimensions are compatible with MPS
+    h, w = image.shape[:2]
+    # Ensure dimensions are multiples of 8, which works well with most ML models
+    new_h, new_w = (h // 8) * 8, (w // 8) * 8
+    if h != new_h or w != new_w:
+        print(f"Resizing image from {w}x{h} to {new_w}x{new_h} for MPS compatibility")
+        image = cv2.resize(image, (new_w, new_h))
+        
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    # Load MTCNN face detector
+    # Load MTCNN face detector - always use CPU to avoid MPS issues
     mtcnn = MTCNN(keep_all=True, device='cuda' if torch.cuda.is_available() else 'cpu')
     boxes, _, landmarks = mtcnn.detect(image_rgb, landmarks=True)
 
@@ -78,12 +87,11 @@ def generate_face_mask(timestamp):
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        print("Using CUDA")
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
-        print("Using MPS on Mac (Apple Silicon)")
+        print("Using CUDA for SAM model")
     else:
+        # Always use CPU on Mac to avoid MPS errors
         device = torch.device("cpu")
+        print("Using CPU for SAM model (avoiding MPS errors)")
 
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device)
@@ -359,14 +367,77 @@ def generate_qr_from_url(url: str, output_path: str = "qr_code.png") -> Image.Im
     img.save(output_path)
     return img
 
-def clear_images(timestamp):
-    # Remove temp files
-    os.remove(f"input/image_{timestamp}.jpg")
-    os.remove(f"masks/image_{timestamp}.png")
-    os.remove(f"outputs/image_{timestamp}.png")
-    os.remove(f"stacked/image_{timestamp}.jpg")
-    os.remove(f"final/image_{timestamp}.png")
-    print("Temporary images cleared")
+def clear_images(timestamp, keep_final=False):
+    """
+    Clean temporary image files for a specific timestamp.
+    
+    Args:
+        timestamp (str): The timestamp of the images to clean
+        keep_final (bool, optional): Whether to keep the final image. Defaults to False.
+    """
+    # List of files to remove
+    files_to_remove = [
+        f"input/image_{timestamp}.jpg",
+        f"masks/image_{timestamp}.png",
+        f"outputs/image_{timestamp}.png",
+        f"stacked/image_{timestamp}.jpg"
+    ]
+    
+    # Add final image if not keeping it
+    if not keep_final:
+        files_to_remove.append(f"final/image_{timestamp}.png")
+    
+    # Track which files were removed
+    removed_count = 0
+    
+    # Safely remove each file if it exists
+    for file_path in files_to_remove:
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                removed_count += 1
+            except Exception as e:
+                print(f"Error removing {file_path}: {e}")
+    
+    print(f"Cleaned {removed_count} temporary images")
+
+def clean_all_images(current_timestamp=None):
+    """
+    Clean all images from input and final directories except for the current_timestamp if provided.
+    
+    Args:
+        current_timestamp (str, optional): Timestamp of the current session to preserve
+    """
+    directories = ["input", "final", "masks", "outputs", "stacked"]
+    
+    total_removed = 0
+    
+    # Create directories if they don't exist
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
+    
+    # Clean each directory
+    for directory in directories:
+        for filename in os.listdir(directory):
+            file_path = os.path.join(directory, filename)
+            
+            # Skip if it's a directory
+            if os.path.isdir(file_path):
+                continue
+                
+            # Only remove files with timestamp in name
+            if "image_" in filename:
+                # If we have a current timestamp, only remove other files
+                if current_timestamp and f"image_{current_timestamp}" in filename:
+                    continue
+                    
+                try:
+                    os.remove(file_path)
+                    total_removed += 1
+                except Exception as e:
+                    print(f"Could not remove {file_path}: {e}")
+    
+    print(f"Cleaned {total_removed} image files from all directories")
 
 def send_email(to_email, image_url):
     """
