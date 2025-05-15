@@ -90,8 +90,8 @@ def generate_face_mask(timestamp):
         print("Using CUDA for SAM model")
     else:
         # Always use CPU on Mac to avoid MPS errors
-        device = torch.device("cpu")
-        print("Using CPU for SAM model (avoiding MPS errors)")
+        device = torch.device("mps")
+
 
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device)
