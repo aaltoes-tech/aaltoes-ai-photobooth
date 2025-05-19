@@ -28,7 +28,7 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 
 def capture_image():
 # Open webcam
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture()
 
     if not cap.isOpened():
         raise IOError("Cannot access webcam")

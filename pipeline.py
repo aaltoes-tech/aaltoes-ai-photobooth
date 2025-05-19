@@ -10,12 +10,11 @@ if __name__ == "__main__":
     
     email = args.email
     timestamp = capture_image()
-    generate_face_mask(timestamp)
     encoding_image = generate_encoding_image(prompt_text, timestamp)
+    generate_face_mask(timestamp)
     generate_polaroid_image(encoding_image, clothes_prompt, background_prompt,timestamp)
     url = upload_file(f"final/image_{timestamp}.png")
 
-    qr_image = generate_qr_from_url(url, "qr_code.png")
     generate_pdf(timestamp)
     clear_images(timestamp)
 
