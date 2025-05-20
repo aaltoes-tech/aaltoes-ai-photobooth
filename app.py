@@ -8,6 +8,7 @@ import time
 import base64
 from PIL import Image, ImageEnhance
 import numpy as np
+import re
 
 st.set_page_config(
     page_title="Aaltoes AI Photobooth",
@@ -291,12 +292,19 @@ def main():
         # Generate face mask
         status_text.text("Step 1/4: Generating face mask...")
         progress_bar.progress(25)
-        generate_face_mask(st.session_state.timestamp)
-        elapsed_time = time.time() - start_time
-        timer_text.text(f"Time elapsed: {elapsed_time:.1f} seconds")
-        with results_container:
-            st.write("Face mask generated:")
-            st.image(f'masks/image_{st.session_state.timestamp}.png', use_column_width=True)
+        try:
+            generate_face_mask(st.session_state.timestamp)
+            elapsed_time = time.time() - start_time
+            timer_text.text(f"Time elapsed: {elapsed_time:.1f} seconds")
+            with results_container:
+                st.write("Face mask generated:")
+                st.image(f'masks/image_{st.session_state.timestamp}.png', use_column_width=True)
+        except ValueError as e:
+            st.error(str(e))
+            if st.button("Try Again with a Different Photo"):
+                st.session_state.step = 'start'
+                st.rerun()
+            return
         
         # Generate encoding and transform image
         status_text.text("Step 2/4: Analyzing image and generating description...")
@@ -382,6 +390,7 @@ def main():
                 st.error("Please enter your email address")
         
         if st.button("Finish without sending"):
+            clear_images(st.session_state.timestamp)
             for file in os.listdir():
                 if file.startswith('qr_code_') and file.endswith('.png'):
                     try:

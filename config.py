@@ -5,7 +5,7 @@ prompt_text = """This photo is taken at a photo booth and has a group of people.
     always include the action they are doing for each person individually. 
     What is the body type the have slim/normal/a bit chubby.  Be as precise as 
     possible. Do not mention background. Do not mention clothes of person. 
-    Use at most 30 words per each person. Do not mention my instructions. Mention what 
+    Use at most 30 words per each person. Mention position of each person (where, how far). Do not mention my instructions. Mention what 
     hair would suit for each person in the style of 
 """
 

@@ -86,12 +86,7 @@ def generate_face_mask(timestamp):
     boxes, _, landmarks = mtcnn.detect(image_rgb, landmarks=True)
     
     if boxes is None or len(boxes) == 0:
-        print("WARNING: No faces detected in the image!")
-        # Create a blank mask if no faces are detected
-        combined_mask = np.zeros((new_h, new_w), dtype=np.uint8)
-        os.makedirs("masks", exist_ok=True)
-        cv2.imwrite(f"masks/image_{timestamp}.png", combined_mask)
-        return
+        raise ValueError("No faces were detected in the image. Please try a different photo with clear, visible faces.")
     
     print(f"Detected {len(boxes)} faces in the image")
 
@@ -466,7 +461,7 @@ def generate_qr_from_url(url: str, output_path: str = "qr_code.png") -> Image.Im
     img.save(output_path)
     return img
 
-def clear_images(timestamp, keep_final=False):
+def clear_images(timestamp):
     """
     Clean temporary image files for a specific timestamp.
     
@@ -476,8 +471,6 @@ def clear_images(timestamp, keep_final=False):
     """
     # List of files to remove
     files_to_remove = [
-        f"input/image_{timestamp}.jpg",
-        f"masks/image_{timestamp}.png",
         f"outputs/image_{timestamp}.png",
         f"stacked/image_{timestamp}.jpg"
     ]
