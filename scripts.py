@@ -235,15 +235,15 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
         photo_path: str,
         output_path: str,
         caption: str,
-        photo_width: int = 600,
-        border: int = 20,
-        bottom_border: int = 120,
+        photo_width: int = 840,
+        border: int = 100,
+        bottom_border: int = 150,
         bg_color = (255,255,255),
         font_path: str = None,
         font_size: int = 28,
         logo_path: str = None,
         logo_size: tuple[int,int] = None,
-        logo_margin_top: int = 10,
+        logo_margin_top: int = 20,
         caption_margin_top: int = 10,
     ):
         # 1) Load & resize the photo
@@ -301,8 +301,8 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
         output_path=f"final/image_{timestamp}.png",
         caption="Unsung heroes",
         photo_width=1000,
-        border=30,
-        bottom_border=160,
+        border=60,
+        bottom_border=200,
         font_path="/Library/Fonts/Geist-Regular.ttf",  # or wherever your .ttf is
         font_size=32,
         logo_path="aaltoes_dark.png",      # your transparent PNG
