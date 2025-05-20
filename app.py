@@ -6,6 +6,7 @@ from scripts import *
 from config import *
 import time
 import base64
+from PIL import Image
 
 st.set_page_config(
     page_title="Aaltoes AI Photobooth",
@@ -28,6 +29,8 @@ def initialize_session_state():
         st.session_state.selected_model = "ideogram-ai/ideogram-v3-turbo"
     if 'photo_source' not in st.session_state:
         st.session_state.photo_source = None  # 'webcam' or 'upload'
+    if 'selected_style' not in st.session_state:
+        st.session_state.selected_style = 0  # Default to first style
 
 def cleanup_temp_files():
     """Clean up any temporary files that might be left over"""
@@ -130,6 +133,20 @@ def main():
     
     if st.session_state.step == 'start':
         st.write("Welcome to the AI Photobooth! Let's create your unique photo.")
+        
+        # Style selection
+        style_names = [
+            "Bioluminescent Explorer",
+            "Workshop Inventor",
+            "Cosmic Scholar",
+            "Nocturnal Scientist"
+        ]
+        st.session_state.selected_style = st.radio(
+            "Choose your style:",
+            range(len(style_names)),
+            format_func=lambda x: style_names[x],
+            horizontal=True
+        )
         
         # Model selection
         st.write("Choose an AI model for transformation:")
@@ -244,7 +261,7 @@ def main():
         # Generate encoding and transform image
         status_text.text("Step 2/4: Analyzing image and generating description...")
         progress_bar.progress(50)
-        encoding_image = generate_encoding_image(prompt_text, st.session_state.timestamp)
+        encoding_image = generate_encoding_image(prompt_text + hair_prompt[st.session_state.selected_style], st.session_state.timestamp)
         with results_container:
             st.write("Image analysis complete. Description:")
             st.info(encoding_image)
@@ -253,10 +270,10 @@ def main():
         progress_bar.progress(75)
         generate_polaroid_image(
             encoding_image, 
-            clothes_prompt, 
-            background_prompt, 
+            clothes_prompt[st.session_state.selected_style], 
+            background_prompt[st.session_state.selected_style], 
             st.session_state.timestamp,
-            model=st.session_state.selected_model  # Use the selected model
+            model=st.session_state.selected_model,  # Use the selected model
         )
         with results_container:
             st.write("Transformed image:")

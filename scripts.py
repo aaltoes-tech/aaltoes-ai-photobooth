@@ -154,7 +154,17 @@ def generate_encoding_image(prompt_text, timestamp):
     return resp.choices[0].message.content
 
 def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, timestamp, model="ideogram-ai/ideogram-v3-turbo"):
-
+    """Generate a polaroid image with the selected style.
+    
+    Args:
+        encoding_image (str): The image encoding text
+        clothes_prompt (str): The clothes prompt text (deprecated, kept for backward compatibility)
+        background_prompt (str): The background prompt text (deprecated, kept for backward compatibility)
+        timestamp (float): The timestamp for file naming
+        model (str): The model to use for generation
+        style_index (int): Index of the style to use (0-3)
+    """
+    # Use the selected style prompts from config
     prompt = f"{encoding_image} \n{clothes_prompt} \n{background_prompt}"
 
     # initialize the client with your API key
@@ -190,7 +200,25 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
     with open(filename, "wb") as f:
         f.write(resp.content)
 
-    def stack_images_vertically(top_path, bottom_path, output_path):
+    def add_rounded_corners(image, radius=30):
+        """Add rounded corners to an image"""
+        # Create a mask with rounded corners
+        mask = Image.new('L', image.size, 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.rounded_rectangle([(0, 0), image.size], radius=radius, fill=255)
+        
+        # Create a new image with transparency
+        output = Image.new('RGBA', image.size, (255, 255, 255, 0))
+        
+        # Convert image to RGBA if it isn't already
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+        
+        # Paste the image onto the output using the mask
+        output.paste(image, (0, 0), mask)
+        return output
+
+    def stack_images_vertically(top_path, bottom_path, output_path, spacing=20, corner_radius=30):
         # Open images
         img_top = Image.open(top_path)
         img_bot = Image.open(bottom_path)
@@ -209,42 +237,41 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
         img_top = resize_to_width(img_top, max_width)
         img_bot = resize_to_width(img_bot, max_width)
 
-        # Create a new image with combined height
-        total_height = img_top.height + img_bot.height
-        new_img = Image.new('RGB', (max_width, total_height), (255, 255, 255))
+        # Add rounded corners to both images
+        img_top = add_rounded_corners(img_top, corner_radius)
+        img_bot = add_rounded_corners(img_bot, corner_radius)
 
-        # Paste images
-        new_img.paste(img_top, (0, 0))
-        new_img.paste(img_bot, (0, img_top.height))
+        # Create a new image with combined height plus spacing and black background
+        total_height = img_top.height + img_bot.height + spacing
+        new_img = Image.new('RGB', (max_width, total_height), (0, 0, 0))  # Changed to black background
+
+        # Paste images with spacing between them
+        new_img.paste(img_top, (0, 0), img_top)
+        new_img.paste(img_bot, (0, img_top.height + spacing), img_bot)
 
         # Save the result
         os.makedirs("stacked", exist_ok=True)
         new_img.save(output_path)
         print(f"Saved stacked image to {output_path}")
 
-
-        # Example usage:
+    # Example usage with spacing and rounded corners:
     stack_images_vertically(
         top_path=f"input/image_{timestamp}.jpg",
         bottom_path=f"outputs/image_{timestamp}.png",
-        output_path=f"stacked/image_{timestamp}.jpg"
+        output_path=f"stacked/image_{timestamp}.jpg",
+        spacing=60,
+        corner_radius=50  # Added corner radius parameter
     )
-
 
     def make_polaroid(
         photo_path: str,
         output_path: str,
-        caption: str,
-        photo_width: int = 840,
-        border: int = 100,
+        photo_width: int = 800,
+        border: int = 60,
         bottom_border: int = 150,
-        bg_color = (255,255,255),
-        font_path: str = None,
-        font_size: int = 28,
-        logo_path: str = None,
-        logo_size: tuple[int,int] = None,
-        logo_margin_top: int = 20,
-        caption_margin_top: int = 10,
+        bg_color = (0, 0, 0),  # Black background
+        logo_path: str = "aaltoes_white.png",  # Default to white logo
+        logo_margin_top: int = 50,
     ):
         # 1) Load & resize the photo
         img = Image.open(photo_path)
@@ -252,60 +279,33 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
         target_size = (photo_width, int(img.height * ratio))
         img = img.resize(target_size, Image.LANCZOS)
 
-        # 2) Create canvas
+        # 2) Create canvas with black background
         canvas_w = target_size[0] + 2 * border
         canvas_h = target_size[1] + border + bottom_border
         canvas = Image.new("RGB", (canvas_w, canvas_h), bg_color)
         canvas.paste(img, (border, border))
 
-        # 3) Prepare to draw
-        draw = ImageDraw.Draw(canvas)
-        font = ImageFont.truetype(font_path, font_size) if font_path else ImageFont.load_default()
-
-        # 4) Paste & center the logo
-        logo_y0 = target_size[1] + border + logo_margin_top
-        if logo_path:
+        # 3) Add logo at original size
+        if logo_path and os.path.exists(logo_path):
             logo = Image.open(logo_path).convert("RGBA")
-            if logo_size:
-                logo = logo.resize(logo_size, Image.LANCZOS)
             logo_x = (canvas_w - logo.width) // 2
-            canvas.paste(logo, (logo_x, logo_y0), logo)
+            logo_y = target_size[1] + border + logo_margin_top
+            canvas.paste(logo, (logo_x, logo_y), logo)
 
-        # 5) Measure caption
-        try:
-            bbox = draw.textbbox((0,0), caption, font=font)
-            text_w, text_h = bbox[2]-bbox[0], bbox[3]-bbox[1]
-        except AttributeError:
-            mask = font.getmask(caption)
-            text_w, text_h = mask.size
-
-        # 6) Position caption below logo, centered
-        text_x = (canvas_w - text_w) // 2
-        # If there was a logo, stack below it; otherwise center in bottom border
-        if logo_path:
-            text_y = logo_y0 + logo.height + caption_margin_top
-        else:
-            # center vertically in bottom border
-            bottom_y0 = target_size[1] + border
-            text_y = bottom_y0 + (bottom_border - text_h) // 2
-
-        draw.text((text_x, text_y), caption, fill=(0,0,0), font=font)
-
-        # 7) Save
+        # 4) Save
         os.makedirs("final", exist_ok=True)
         canvas.save(output_path)
-        print(f"Polaroid with centered logo & caption saved to {output_path}")
+        print(f"Polaroid with logo saved to {output_path}")
 
     make_polaroid(
         photo_path=f"stacked/image_{timestamp}.jpg",
         output_path=f"final/image_{timestamp}.png",
-        caption="Unsung heroes",
         photo_width=1000,
-        border=60,
-        bottom_border=200,
-        font_path="/Library/Fonts/Geist-Regular.ttf",  # or wherever your .ttf is
-        font_size=32,
-        logo_path="aaltoes_dark.png",      # your transparent PNG
+        border=30,
+        bottom_border=300,
+        bg_color=(0, 0, 0),
+        logo_path="aaltoes_white.png",
+        logo_margin_top=90  # More space above the logo
     )
 
 def show_image(timestamp, folder, ext = "jpg"):
@@ -508,7 +508,7 @@ def generate_pdf(timestamp):
     # ─── 1) CONFIGURE THESE PATHS ────────────────────────────────────
     main_image_path = f'final/image_{timestamp}.png'  
     qr_image_path   = 'qr_code.png'      # ← your right-column QR code
-    logo_path       = 'aaltoes_dark.png'         # ← bottom-center logo
+    logo_path       = 'aaltoes_white.png'         # ← bottom-center logo
     output_pdf      = 'booth_thanks_horizontal.pdf'
     # ────────────────────────────────────────────────────────────────
 
