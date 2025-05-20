@@ -90,7 +90,16 @@ streamlit run app.py
 - Input photos are automatically resized to 1080x720
 - Original orientation is preserved
 - Face masks are generated for proper AI transformation
-- Final images are saved in "polaroid" template.
+- Final images are saved in "polaroid" template
+- QR codes are stored in a dedicated 'qr' directory
+- Directory structure:
+  - `input/`: Original photos
+  - `masks/`: Generated face masks
+  - `outputs/`: Transformed images
+  - `stacked/`: Combined before/after images
+  - `final/`: Final polaroid images
+  - `qr/`: Generated QR codes
+  - `references/`: Style reference images
 
 ## Error Handling
 

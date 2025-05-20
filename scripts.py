@@ -16,8 +16,6 @@ import qrcode
 import resend
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import landscape, A4
-from config import replicate_model
-
 
 load_dotenv()
 
@@ -444,11 +442,21 @@ def upload_file(file_path: str):
         else:
             raise Exception(f"Failed to upload file: {response.text}")
 
-def generate_qr_from_url(url: str, output_path: str = "qr_code.png") -> Image.Image:
+def generate_qr_from_url(url: str, qr_path: str) -> Image.Image:
     """
-    Generates a QR code for the given URL and saves it to output_path.
+    Generates a QR code for the given URL and saves it to the qr directory.
     Returns the PIL Image object.
+    
+    Args:
+        url (str): The URL to encode in the QR code
+        output_path (str, optional): The output path. If None, a timestamp-based name will be used.
     """
+    # Create qr directory if it doesn't exist
+    os.makedirs("qr", exist_ok=True)
+    
+    # If no output path is provided, use a timestamp-based name
+    output_path = os.path.join("qr", qr_path)
+    
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_H,

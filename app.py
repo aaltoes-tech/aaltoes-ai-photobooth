@@ -337,7 +337,7 @@ def main():
         st.session_state.image_url = upload_file(f"final/image_{st.session_state.timestamp}.png")
         
         # Generate QR code with timestamp
-        qr_path = f'qr_code_{st.session_state.timestamp}.png'
+        qr_path = f'qr/qr_code_{st.session_state.timestamp}.png'
         generate_qr_from_url(st.session_state.image_url, qr_path)
         
         # Final elapsed time
@@ -364,7 +364,7 @@ def main():
         
         with col2:
             # Display QR code
-            qr_path = f'qr_code_{st.session_state.timestamp}.png'
+            qr_path = f'qr/qr_code_{st.session_state.timestamp}.png'
             if os.path.exists(qr_path):
                 st.image(qr_path, use_column_width=True)
             else:
@@ -391,12 +391,13 @@ def main():
         
         if st.button("Finish without sending"):
             clear_images(st.session_state.timestamp)
-            for file in os.listdir():
-                if file.startswith('qr_code_') and file.endswith('.png'):
-                    try:
-                        os.remove(file)
-                    except Exception as e:
-                        print(f"Could not remove {file}: {e}")
+            # Clean up QR codes from the qr directory
+            qr_path = f'qr/qr_code_{st.session_state.timestamp}.png'
+            if os.path.exists(qr_path):
+                try:
+                    os.remove(qr_path)
+                except Exception as e:
+                    print(f"Could not remove {qr_path}: {e}")
             
             # Move to thank you step
             st.session_state.step = 'thank_you'
@@ -409,13 +410,14 @@ def main():
             # Clear all images and QR codes
             clean_all_images()  # This will clear all images from all directories
             cleanup_temp_files()  # Also clean up any temp files
-            # Also remove any QR code files
-            for file in os.listdir():
-                if file.startswith('qr_code_') and file.endswith('.png'):
-                    try:
-                        os.remove(file)
-                    except Exception as e:
-                        print(f"Could not remove {file}: {e}")
+            # Clean up QR codes from the qr directory
+            if os.path.exists('qr'):
+                for file in os.listdir('qr'):
+                    if file.startswith('qr_code_') and file.endswith('.png'):
+                        try:
+                            os.remove(os.path.join('qr', file))
+                        except Exception as e:
+                            print(f"Could not remove {file}: {e}")
             
             # Reset session state
             st.session_state.step = 'start'
