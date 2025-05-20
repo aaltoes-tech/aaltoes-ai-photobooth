@@ -63,9 +63,11 @@ def capture_image():
     return timestamp
 
 def generate_face_mask(timestamp):
-
     image_name = f"input/image_{timestamp}.jpg"
     image = cv2.imread(image_name)
+    
+    if image is None:
+        raise ValueError(f"Could not read image from {image_name}")
     
     # Resize the image to ensure dimensions are compatible with MPS
     h, w = image.shape[:2]
@@ -78,10 +80,23 @@ def generate_face_mask(timestamp):
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     # Load MTCNN face detector - always use CPU to avoid MPS issues
+    print("Loading MTCNN face detector...")
     mtcnn = MTCNN(keep_all=True, device='cuda' if torch.cuda.is_available() else 'cpu')
+    print("Detecting faces...")
     boxes, _, landmarks = mtcnn.detect(image_rgb, landmarks=True)
+    
+    if boxes is None or len(boxes) == 0:
+        print("WARNING: No faces detected in the image!")
+        # Create a blank mask if no faces are detected
+        combined_mask = np.zeros((new_h, new_w), dtype=np.uint8)
+        os.makedirs("masks", exist_ok=True)
+        cv2.imwrite(f"masks/image_{timestamp}.png", combined_mask)
+        return
+    
+    print(f"Detected {len(boxes)} faces in the image")
 
     # Load SAM model
+    print("Loading SAM model...")
     sam_checkpoint = "sam_vit_h_4b8939.pth"
     model_type = "vit_h"
 
@@ -91,7 +106,7 @@ def generate_face_mask(timestamp):
     else:
         # Always use CPU on Mac to avoid MPS errors
         device = torch.device("mps")
-
+        print("Using MPS for SAM model")
 
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device)
@@ -100,31 +115,46 @@ def generate_face_mask(timestamp):
 
     # Prepare masks for all faces
     masks = []
-    for box, lm in zip(boxes, landmarks):
+    for i, (box, lm) in enumerate(zip(boxes, landmarks)):
         if box is None or lm is None:
+            print(f"WARNING: Invalid box or landmarks for face {i}")
             continue
         x0, y0, x1, y1 = map(int, box)
-    # 1) Prepare your prompts exactly as before:
+        print(f"Processing face {i} at coordinates: ({x0}, {y0}, {x1}, {y1})")
+        
+        # 1) Prepare your prompts exactly as before:
         box_prompt = np.array([[x0, y0, x1, y1]])            # shape (1,4)
         eyes       = lm.astype(np.float32)               # shape (2,2)
         labels     = np.array([1]*len(eyes), dtype=np.int64)         # shape (2,)
 
-        # 2) Ask SAM for three masks:
-        masks_for_face, _, _ = predictor.predict(
-            point_coords=eyes,
-            point_labels=labels,
-            box=box_prompt,
-            multimask_output=False    # ← here's the change
-        )
+        # 2) Ask SAM for mask:
+        try:
+            masks_for_face, _, _ = predictor.predict(
+                point_coords=eyes,
+                point_labels=labels,
+                box=box_prompt,
+                multimask_output=False
+            )
+            masks.append(masks_for_face[0])
+            print(f"Successfully generated mask for face {i}")
+        except Exception as e:
+            print(f"Error generating mask for face {i}: {str(e)}")
+            continue
 
-        masks.append(masks_for_face[0])
+    if not masks:
+        print("WARNING: No valid masks were generated!")
+        # Create a blank mask if no valid masks were generated
+        combined_mask = np.zeros((new_h, new_w), dtype=np.uint8)
+    else:
+        # Combine all masks into one
+        combined_mask = np.any(np.stack(masks, axis=0), axis=0).astype(np.uint8) * 255
+        print(f"Successfully combined {len(masks)} masks")
 
-    # Combine all masks into one
-    combined_mask = np.any(np.stack(masks, axis=0), axis=0).astype(np.uint8) * 255
     # Save output
     os.makedirs("masks", exist_ok=True)
-
-    cv2.imwrite(f"masks/image_{timestamp}.png", combined_mask)
+    mask_path = f"masks/image_{timestamp}.png"
+    cv2.imwrite(mask_path, combined_mask)
+    print(f"Saved mask to {mask_path}")
 
 def generate_encoding_image(prompt_text, timestamp):
     client = OpenAI(api_key=OPENAI_API_KEY)
@@ -153,7 +183,7 @@ def generate_encoding_image(prompt_text, timestamp):
 
     return resp.choices[0].message.content
 
-def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, timestamp, model="ideogram-ai/ideogram-v3-turbo"):
+def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, reference_name, timestamp, model="ideogram-ai/ideogram-v3-turbo"):
     """Generate a polaroid image with the selected style.
     
     Args:
@@ -165,7 +195,7 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
         style_index (int): Index of the style to use (0-3)
     """
     # Use the selected style prompts from config
-    prompt = f"{encoding_image} \n{clothes_prompt} \n{background_prompt}"
+    prompt = f"{encoding_image} \n{background_prompt} \n{clothes_prompt}"
 
     # initialize the client with your API key
     client = replicate.Client(api_token=REPLICATE_API_KEY)
@@ -174,9 +204,33 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
     photo_path = f"input/image_{timestamp}.jpg"
     mask_path = f"masks/image_{timestamp}.png"
 
+    # Verify files exist
+    if not os.path.exists(photo_path):
+        raise FileNotFoundError(f"Photo not found at {photo_path}")
+    if not os.path.exists(mask_path):
+        raise FileNotFoundError(f"Mask not found at {mask_path}")
+
+    # Verify mask is not empty
+    mask_img = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    if mask_img is None:
+        raise ValueError(f"Could not read mask from {mask_path}")
+    
+    # Check if mask is empty (all zeros)
+    if np.all(mask_img == 0):
+        print("WARNING: Mask is empty (all zeros)! This means no faces were detected or mask generation failed.")
+    else:
+        # Calculate percentage of non-zero pixels
+        mask_percentage = (np.count_nonzero(mask_img) / mask_img.size) * 100
+        print(f"Mask contains {mask_percentage:.2f}% non-zero pixels")
+
+    print(f"Opening photo from {photo_path}")
     image = open(photo_path, "rb")
+    print(f"Opening mask from {mask_path}")
     mask = open(mask_path, "rb")
 
+    reference = open(reference_name, "rb")
+
+    print("Running Ideogram model with image and mask...")
     # Run the model
     output = client.run(
         model,  # Use the provided model parameter
@@ -185,11 +239,13 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
             "mask": mask,
             "prompt": prompt,
             "resolution": "None",
-            "style_type": "None",
+            "style_type": "Realistic",
             "aspect_ratio": "3:2",
-            "magic_prompt_option": "Off"
+            "magic_prompt_option": "Off",
+            "style_reference_images": [reference]
         }
     )
+    print("Model run completed")
 
     resp = requests.get(output)
     resp.raise_for_status()
@@ -218,7 +274,8 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
         output.paste(image, (0, 0), mask)
         return output
 
-    def stack_images_vertically(top_path, bottom_path, output_path, spacing=20, corner_radius=30):
+    def stack_images_vertically(top_path, bottom_path, 
+                                output_path, spacing=20, corner_radius=30, border_width=10, border_color=(80, 80, 80)):
         # Open images
         img_top = Image.open(top_path)
         img_bot = Image.open(bottom_path)
@@ -237,13 +294,55 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
         img_top = resize_to_width(img_top, max_width)
         img_bot = resize_to_width(img_bot, max_width)
 
-        # Add rounded corners to both images
-        img_top = add_rounded_corners(img_top, corner_radius)
-        img_bot = add_rounded_corners(img_bot, corner_radius)
+        def add_border_and_round_corners(img, border_width, border_color, corner_radius):
+            # Create a new image with border
+            border_img = Image.new('RGB', 
+                (img.width + 2*border_width, img.height + 2*border_width), 
+                border_color)
+            
+            # Create a mask for rounded corners
+            mask = Image.new('L', border_img.size, 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.rounded_rectangle(
+                [(0, 0), border_img.size], 
+                radius=corner_radius, 
+                fill=255
+            )
+            
+            # Create a new image with transparency
+            result = Image.new('RGBA', border_img.size, (0, 0, 0, 0))
+            
+            # Convert border image to RGBA
+            border_img = border_img.convert('RGBA')
+            
+            # Paste the border image using the mask
+            result.paste(border_img, (0, 0), mask)
+            
+            # Convert original image to RGBA if needed
+            if img.mode != 'RGBA':
+                img = img.convert('RGBA')
+            
+            # Create a mask for the inner image
+            inner_mask = Image.new('L', img.size, 0)
+            inner_mask_draw = ImageDraw.Draw(inner_mask)
+            inner_mask_draw.rounded_rectangle(
+                [(0, 0), img.size], 
+                radius=corner_radius - border_width, 
+                fill=255
+            )
+            
+            # Paste the original image on top of the border
+            result.paste(img, (border_width, border_width), inner_mask)
+            
+            return result
+
+        # Add borders and round corners to both images
+        img_top = add_border_and_round_corners(img_top, border_width, border_color, corner_radius)
+        img_bot = add_border_and_round_corners(img_bot, border_width, border_color, corner_radius)
 
         # Create a new image with combined height plus spacing and black background
         total_height = img_top.height + img_bot.height + spacing
-        new_img = Image.new('RGB', (max_width, total_height), (0, 0, 0))  # Changed to black background
+        new_img = Image.new('RGB', (max_width + 2*border_width, total_height), (0, 0, 0))
 
         # Paste images with spacing between them
         new_img.paste(img_top, (0, 0), img_top)
@@ -252,14 +351,14 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
         # Save the result
         os.makedirs("stacked", exist_ok=True)
         new_img.save(output_path)
-        print(f"Saved stacked image to {output_path}")
+        print(f"Saved stacked image with gray borders to {output_path}")
 
     # Example usage with spacing and rounded corners:
     stack_images_vertically(
         top_path=f"input/image_{timestamp}.jpg",
         bottom_path=f"outputs/image_{timestamp}.png",
         output_path=f"stacked/image_{timestamp}.jpg",
-        spacing=60,
+        spacing=40,
         corner_radius=50  # Added corner radius parameter
     )
 
@@ -267,7 +366,7 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
         photo_path: str,
         output_path: str,
         photo_width: int = 800,
-        border: int = 60,
+        border: int = 90,
         bottom_border: int = 150,
         bg_color = (0, 0, 0),  # Black background
         logo_path: str = "aaltoes_white.png",  # Default to white logo
@@ -300,8 +399,8 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, t
     make_polaroid(
         photo_path=f"stacked/image_{timestamp}.jpg",
         output_path=f"final/image_{timestamp}.png",
-        photo_width=1000,
-        border=30,
+        photo_width=1080+2*45,
+        border= 45,
         bottom_border=300,
         bg_color=(0, 0, 0),
         logo_path="aaltoes_white.png",
@@ -382,11 +481,7 @@ def clear_images(timestamp, keep_final=False):
         f"outputs/image_{timestamp}.png",
         f"stacked/image_{timestamp}.jpg"
     ]
-    
-    # Add final image if not keeping it
-    if not keep_final:
-        files_to_remove.append(f"final/image_{timestamp}.png")
-    
+     
     # Track which files were removed
     removed_count = 0
     

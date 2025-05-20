@@ -6,7 +6,8 @@ from scripts import *
 from config import *
 import time
 import base64
-from PIL import Image
+from PIL import Image, ImageEnhance
+import numpy as np
 
 st.set_page_config(
     page_title="Aaltoes AI Photobooth",
@@ -182,19 +183,52 @@ def main():
                 # Ensure input directory exists
                 os.makedirs('input', exist_ok=True)
                 
-                # Save the uploaded file
+                # Save and resize the uploaded file
                 image_path = f'input/image_{timestamp}.jpg'
-                with open(image_path, 'wb') as f:
-                    f.write(uploaded_file.getvalue())
+                
+                # Read image using PIL and preserve original orientation
+                image = Image.open(uploaded_file)
+                # Remove EXIF rotation
+                if hasattr(image, '_getexif') and image._getexif() is not None:
+                    exif = image._getexif()
+                    if exif is not None:
+                        for orientation in [274, 274]:  # EXIF orientation tag
+                            if orientation in exif:
+                                if exif[orientation] == 3:
+                                    image = image.rotate(180, expand=True)
+                                elif exif[orientation] == 6:
+                                    image = image.rotate(270, expand=True)
+                                elif exif[orientation] == 8:
+                                    image = image.rotate(90, expand=True)
+                                break
                 
                 # Convert to RGB if needed
-                image = cv2.imread(image_path)
-                if image is not None:
-                    cv2.imwrite(image_path, image)
-                    st.session_state.step = 'preview'
-                    st.rerun()
-                else:
-                    st.error("Failed to process the uploaded image")
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+                
+                # Calculate dimensions for centered crop
+                target_width, target_height = 1080, 720
+                width, height = image.size
+                
+                # Calculate the crop dimensions
+                crop_width = min(width, int(height * (target_width / target_height)))
+                crop_height = min(height, int(width * (target_height / target_width)))
+                
+                # Calculate the crop box (centered)
+                left = (width - crop_width) // 2
+                top = (height - crop_height) // 2
+                right = left + crop_width
+                bottom = top + crop_height
+                
+                # Crop and resize to target size
+                image = image.crop((left, top, right, bottom))
+                image = image.resize((target_width, target_height), Image.Resampling.LANCZOS)
+                
+                # Save the resized image without EXIF data
+                image.save(image_path, 'JPEG', quality=95, exif=b'')
+                
+                st.session_state.step = 'preview'
+                st.rerun()
         else:
             if st.button("Start Photo Session"):
                 # Test webcam access before proceeding
@@ -246,14 +280,20 @@ def main():
         with progress_container:
             progress_bar = st.progress(0)
             status_text = st.empty()
+            timer_text = st.empty()  # Add container for timer
         
         # Create containers for intermediate results
         results_container = st.container()
+        
+        # Start the timer
+        start_time = time.time()
         
         # Generate face mask
         status_text.text("Step 1/4: Generating face mask...")
         progress_bar.progress(25)
         generate_face_mask(st.session_state.timestamp)
+        elapsed_time = time.time() - start_time
+        timer_text.text(f"Time elapsed: {elapsed_time:.1f} seconds")
         with results_container:
             st.write("Face mask generated:")
             st.image(f'masks/image_{st.session_state.timestamp}.png', use_column_width=True)
@@ -262,6 +302,8 @@ def main():
         status_text.text("Step 2/4: Analyzing image and generating description...")
         progress_bar.progress(50)
         encoding_image = generate_encoding_image(prompt_text + hair_prompt[st.session_state.selected_style], st.session_state.timestamp)
+        elapsed_time = time.time() - start_time
+        timer_text.text(f"Time elapsed: {elapsed_time:.1f} seconds")
         with results_container:
             st.write("Image analysis complete. Description:")
             st.info(encoding_image)
@@ -272,9 +314,12 @@ def main():
             encoding_image, 
             clothes_prompt[st.session_state.selected_style], 
             background_prompt[st.session_state.selected_style], 
+            f"references/reference_{st.session_state.selected_style}.png",
             st.session_state.timestamp,
             model=st.session_state.selected_model,  # Use the selected model
         )
+        elapsed_time = time.time() - start_time
+        timer_text.text(f"Time elapsed: {elapsed_time:.1f} seconds")
         with results_container:
             st.write("Transformed image:")
             st.image(f'stacked/image_{st.session_state.timestamp}.jpg', use_column_width=True)
@@ -287,6 +332,9 @@ def main():
         qr_path = f'qr_code_{st.session_state.timestamp}.png'
         generate_qr_from_url(st.session_state.image_url, qr_path)
         
+        # Final elapsed time
+        final_time = time.time() - start_time
+        timer_text.text(f"Total processing time: {final_time:.1f} seconds")
         progress_bar.progress(100)
         status_text.text("Processing complete!")
         
@@ -334,9 +382,6 @@ def main():
                 st.error("Please enter your email address")
         
         if st.button("Finish without sending"):
-            # Clear all images and QR codes
-            clean_all_images()  # This will clear all images from all directories
-            # Also remove any QR code files
             for file in os.listdir():
                 if file.startswith('qr_code_') and file.endswith('.png'):
                     try:
