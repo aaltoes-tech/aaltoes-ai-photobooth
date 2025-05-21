@@ -34,22 +34,6 @@ def initialize_session_state():
     if 'selected_style' not in st.session_state:
         st.session_state.selected_style = 0  # Default to first style
 
-def cleanup_temp_files():
-    """Clean up any temporary files that might be left over"""
-    temp_dir = os.path.join(os.getcwd(), 'temp')
-    if os.path.exists(temp_dir):
-        for file in os.listdir(temp_dir):
-            try:
-                os.remove(os.path.join(temp_dir, file))
-            except:
-                pass
-    # Also clean up any stray files in the root directory
-    for file in os.listdir():
-        if file.endswith('.jpg') and len(file) > 32:  # Long filenames are likely temp files
-            try:
-                os.remove(file)
-            except:
-                pass
 
 def get_camera():
     if st.session_state.camera is None:
@@ -129,8 +113,7 @@ def capture_image():
 
 def main():
     initialize_session_state()
-    cleanup_temp_files()  # Clean up at the start of each session
-    
+
     st.title("Aaltoes AI Photobooth 📸")
     
     if st.session_state.step == 'start':
@@ -335,6 +318,7 @@ def main():
         # Upload and generate QR code
         status_text.text("Step 4/4: Finalizing and uploading...")
         st.session_state.image_url = upload_file(f"final/image_{st.session_state.timestamp}.png")
+        clear_images(st.session_state.timestamp)
         
         # Generate QR code with timestamp
         qr_path = f'qr/qr_code_{st.session_state.timestamp}.png'
@@ -364,6 +348,8 @@ def main():
         
         with col2:
             # Display QR code
+            os.makedirs("qr", exist_ok=True)
+            
             qr_path = f'qr/qr_code_{st.session_state.timestamp}.png'
             if os.path.exists(qr_path):
                 st.image(qr_path, use_column_width=True)
@@ -383,14 +369,12 @@ def main():
             if email:
                 with st.spinner("Sending your photo..."):
                     send_email(email, st.session_state.image_url)
-                    clear_images(st.session_state.timestamp)
                     st.session_state.step = 'thank_you'
                     st.rerun()
             else:
                 st.error("Please enter your email address")
         
         if st.button("Finish without sending"):
-            clear_images(st.session_state.timestamp)
             # Clean up QR codes from the qr directory
             qr_path = f'qr/qr_code_{st.session_state.timestamp}.png'
             if os.path.exists(qr_path):
@@ -408,9 +392,7 @@ def main():
         st.balloons()
         if st.button("Start New Session"):
             # Clear all images and QR codes
-            clean_all_images()  # This will clear all images from all directories
-            cleanup_temp_files()  # Also clean up any temp files
-            # Clean up QR codes from the qr directory
+        # Clean up QR codes from the qr directory
             if os.path.exists('qr'):
                 for file in os.listdir('qr'):
                     if file.startswith('qr_code_') and file.endswith('.png'):

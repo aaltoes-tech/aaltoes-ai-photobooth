@@ -452,10 +452,7 @@ def generate_qr_from_url(url: str, qr_path: str) -> Image.Image:
         output_path (str, optional): The output path. If None, a timestamp-based name will be used.
     """
     # Create qr directory if it doesn't exist
-    os.makedirs("qr", exist_ok=True)
-    
-    # If no output path is provided, use a timestamp-based name
-    output_path = os.path.join("qr", qr_path)
+
     
     qr = qrcode.QRCode(
         version=1,
@@ -466,7 +463,7 @@ def generate_qr_from_url(url: str, qr_path: str) -> Image.Image:
     qr.add_data(url)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
-    img.save(output_path)
+    img.save(qr_path)
     return img
 
 def clear_images(timestamp):

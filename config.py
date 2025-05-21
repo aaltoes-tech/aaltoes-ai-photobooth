@@ -1,7 +1,7 @@
-prompt_text = """This photo is taken at a photo booth and has a group of people. 
+prompt_text = """Answer as plain paragraph. This photo is taken at a photo booth and has a group of people. 
     There can be some people in the background,ignore them in the explanation. 
     Mention the number of people who are taking photo. Expain who is at the 
-    picture: gender, age, explain appearance (mention hair color), 
+    picture: gender, age, hair color, 
     always include the action they are doing for each person individually. 
     What is the body type the have slim/normal/a bit chubby.  Be as precise as 
     possible. Do not mention background. Do not mention clothes of person. 
