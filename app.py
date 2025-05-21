@@ -113,7 +113,7 @@ def capture_image():
 
 def main():
     initialize_session_state()
-
+  
     st.title("Aaltoes AI Photobooth 📸")
     
     if st.session_state.step == 'start':
@@ -349,7 +349,7 @@ def main():
         with col2:
             # Display QR code
             os.makedirs("qr", exist_ok=True)
-            
+
             qr_path = f'qr/qr_code_{st.session_state.timestamp}.png'
             if os.path.exists(qr_path):
                 st.image(qr_path, use_column_width=True)

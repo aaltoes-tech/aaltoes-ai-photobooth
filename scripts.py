@@ -477,7 +477,8 @@ def clear_images(timestamp):
     # List of files to remove
     files_to_remove = [
         f"outputs/image_{timestamp}.png",
-        f"stacked/image_{timestamp}.jpg"
+        f"stacked/image_{timestamp}.jpg",
+        f"masks/image_{timestamp}.png",
     ]
      
     # Track which files were removed
