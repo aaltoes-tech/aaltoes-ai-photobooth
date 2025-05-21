@@ -232,7 +232,7 @@ def generate_polaroid_image(encoding_image, clothes_prompt, background_prompt, r
             "mask": mask,
             "prompt": prompt,
             "resolution": "None",
-            "style_type": "Realistic",
+            "style_type": "None",
             "aspect_ratio": "3:2",
             "magic_prompt_option": "Off",
             "style_reference_images": [reference]

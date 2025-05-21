@@ -1,18 +1,19 @@
-prompt_text = """Answer as plain paragraph. This photo is taken at a photo booth and has a group of people. 
+prompt_text = """Answer as plain paragraph.This photo is taken at a photo booth and has a group of people. 
     There can be some people in the background,ignore them in the explanation. 
     Mention the number of people who are taking photo. Expain who is at the 
     picture: gender, age, hair color, 
     always include the action they are doing for each person individually. 
     What is the body type the have slim/normal/a bit chubby.  Be as precise as 
     possible. Do not mention background. Do not mention clothes of person. 
-    Use at most 30 words per each person. Mention position of each person (where, how far). Do not mention my instructions. Mention what 
+    Use at most 40 words per each person. Mention position of each person (where, how far). 
+    Please use at most 120 words. Mention what 
     hair would suit for each person in the style of 
 """
 
-hair_prompt = ["Explorer, suggest if colorful highlights on hair would suit this style and person.  Source of light is from the left and it reflects from the hair. Anatomically correct. All fingers have corect anatomical form.",
-            "Inventor, suggest if colorful highlights on hair would suit this style and person.  Source of light is from the left and it reflects from the hair. Anatomically correct. All fingers have corect anatomical form.",
-            "Scholar, suggest if colorful highlights on hair would suit this style and person.  Source of light is from the left and it reflects from the hair. Anatomically correct. All fingers have corect anatomical form.",
-            "Scientist, suggest if colorful highlights on hair would suit this style and person.  Source of light is from the left and it reflects from the hair. Anatomically correct. All fingers have corect anatomical form."
+hair_prompt = ["Explorer.  Source of light is from the left and it reflects from the hair. Anatomically correct. ",
+            "Inventor.  Source of light is from the left and it reflects from the hair. Anatomically correct.",
+            "Scholar.  Source of light is from the left and it reflects from the hair. Anatomically correct.",
+            "Scientist.  Source of light is from the left and it reflects from the hair. Anatomically correct."
 ]
 
 clothes_prompt = [
